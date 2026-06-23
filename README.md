@@ -8,8 +8,8 @@ This project does not use NCCN AccessKey or Developer API. It builds an index fr
 
 - `archive/index.yaml`: current guideline index discovered from NCCN pages.
 - `archive/manifest.json`: archive state, source URLs, checksums, sizes, and saved paths.
-- `archive/latest/<slug>.pdf`: latest known PDF for each guideline.
-- `archive/guidelines/<slug>/<version-or-checksum>/<file>.pdf`: historical copies when content changes.
+- `archive/latest/NCCN_<Guideline_Name>_<Version>.pdf`: latest known PDF for each guideline.
+- `archive/guidelines/<slug>/<Version>/NCCN_<Guideline_Name>_<Version>.pdf`: historical copies when content changes.
 
 ## Quick Start
 
@@ -141,6 +141,7 @@ Treat this like a password. It expires and should not be committed.
 ## Operational Notes
 
 - The script stores the raw PDF SHA-256, but update detection uses a normalized PDF content fingerprint so NCCN's per-download footer timestamp does not create duplicate versions.
+- PDF filenames follow `NCCN_<Guideline_Name>_<Version>.pdf`, for example `NCCN_Gastric_Cancer_Version_3.2026.pdf`.
 - Credentials stay outside the image in `.env`.
 - Default concurrency and delay are intentionally low.
 - `--dry-run` still downloads PDFs to verify content and compute hashes, but it does not write them.

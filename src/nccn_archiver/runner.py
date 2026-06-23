@@ -8,7 +8,7 @@ from .downloader import NCCNClient
 from .fingerprint import PdfFingerprint, pdf_fingerprint
 from .index import build_public_index, filter_guidelines, save_index
 from .models import Guideline, RunSummary
-from .naming import filename_from_url, slugify
+from .naming import guideline_pdf_filename, slugify, version_token
 from .state import load_state, save_state, utc_now_iso
 
 LOGGER = logging.getLogger(__name__)
@@ -16,12 +16,30 @@ LOGGER = logging.getLogger(__name__)
 
 def _archive_paths(settings: Settings, guideline: Guideline, fingerprint: PdfFingerprint) -> tuple[Path, Path]:
     slug = slugify(guideline.slug or guideline.title)
-    version_label = guideline.version or guideline.updated_at or fingerprint.content_sha256[:12]
-    version_label = slugify(version_label, fingerprint.content_sha256[:12])
-    filename = filename_from_url(guideline.url, slug)
+    version = fingerprint.version or guideline.version or guideline.updated_at
+    version_label = version_token(version, fingerprint.content_sha256)
+    filename = guideline_pdf_filename(
+        guideline.title,
+        version,
+        fingerprint.content_sha256,
+        guideline.variant,
+    )
     historical_path = settings.archive_dir / "guidelines" / slug / version_label / filename
-    latest_path = settings.archive_dir / "latest" / f"{slug}.pdf"
+    latest_path = settings.archive_dir / "latest" / filename
     return historical_path, latest_path
+
+
+def _remove_previous_latest(previous: dict, latest_path: Path) -> None:
+    previous_latest = previous.get("latest_path")
+    if not previous_latest:
+        return
+    previous_path = Path(previous_latest)
+    if previous_path == latest_path or not previous_path.exists():
+        return
+    try:
+        previous_path.unlink()
+    except OSError as exc:
+        LOGGER.warning("Could not remove previous latest PDF %s: %s", previous_path, exc)
 
 
 async def _get_index(settings: Settings) -> list[Guideline]:
@@ -65,7 +83,9 @@ async def run_once(
                 latest_path.parent.mkdir(parents=True, exist_ok=True)
                 historical_path.write_bytes(downloaded.content)
                 latest_path.write_bytes(downloaded.content)
+                _remove_previous_latest(previous, latest_path)
 
+                version = fingerprint.version or guideline.version
                 state["guidelines"][guideline.slug] = {
                     "title": guideline.title,
                     "slug": guideline.slug,
@@ -73,7 +93,8 @@ async def run_once(
                     "variant": guideline.variant,
                     "label": guideline.label,
                     "detail_url": guideline.detail_url,
-                    "version": guideline.version,
+                    "version": version or "",
+                    "pdf_version": fingerprint.version or "",
                     "updated_at": guideline.updated_at,
                     "source_url": downloaded.source_url,
                     "sha256": fingerprint.byte_sha256,

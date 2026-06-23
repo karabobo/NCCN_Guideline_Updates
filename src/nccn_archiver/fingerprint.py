@@ -21,6 +21,7 @@ class PdfFingerprint:
     byte_sha256: str
     content_sha256: str
     page_count: int | None
+    version: str | None
     method: str
 
 
@@ -32,16 +33,26 @@ def _normalize_line(line: str) -> str:
     return " ".join(line.split())
 
 
+def _find_version(line: str) -> str | None:
+    match = re.search(r"\bVersion[:\s]+(\d+\.\d{4})\b", line, flags=re.IGNORECASE)
+    if not match:
+        return None
+    return f"Version {match.group(1)}"
+
+
 def pdf_fingerprint(content: bytes) -> PdfFingerprint:
     byte_digest = _byte_sha256(content)
     try:
         reader = PdfReader(io.BytesIO(content))
         lines = [f"pages:{len(reader.pages)}"]
+        version = None
         for page in reader.pages:
             for raw_line in (page.extract_text() or "").splitlines():
                 line = _normalize_line(raw_line)
                 if not line:
                     continue
+                if not version:
+                    version = _find_version(line)
                 if PRINTED_BY_PATTERN.match(line):
                     continue
                 lines.append(line)
@@ -50,6 +61,7 @@ def pdf_fingerprint(content: bytes) -> PdfFingerprint:
             byte_sha256=byte_digest,
             content_sha256=content_digest,
             page_count=len(reader.pages),
+            version=version,
             method="pypdf-text-with-nccn-footer-filter",
         )
     except Exception as exc:
@@ -58,5 +70,6 @@ def pdf_fingerprint(content: bytes) -> PdfFingerprint:
             byte_sha256=byte_digest,
             content_sha256=byte_digest,
             page_count=None,
+            version=None,
             method="byte-sha256-fallback",
         )
