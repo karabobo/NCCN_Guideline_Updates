@@ -1,0 +1,17 @@
+services:
+  nccn-archiver:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./archive:/archive
+    restart: "no"
+
+  nccn-archiver-cron:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./archive:/archive
+    command: ["--daemon"]
+    restart: unless-stopped
