@@ -20,6 +20,7 @@ cp .env.example .env
 Edit `.env`:
 
 ```env
+ARCHIVE_HOST_DIR=./archive
 NCCN_USERNAME=your-email@example.com
 NCCN_PASSWORD=your-password
 NCCN_LIMIT=1
@@ -103,6 +104,18 @@ Limit categories:
 
 ```env
 NCCN_CATEGORIES=1,2,3,4
+```
+
+For oncology guidelines only:
+
+```env
+NCCN_CATEGORIES=1
+```
+
+On a NAS or server, set the host-side archive folder:
+
+```env
+ARCHIVE_HOST_DIR=/volume1/Download/NCCN
 ```
 
 Or list exact guideline detail pages:
