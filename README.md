@@ -141,6 +141,25 @@ NCCN_PDF_VARIANTS=all
 
 Other recognized variants are `basic_framework`, `core_framework`, `enhanced_framework`, `patient`, and `harmonized`.
 
+## Feishu Notifications
+
+The archiver can notify a Feishu custom bot when guidelines are added, updated, or fail to download. It sends a message card only; PDFs remain in the archive.
+
+```env
+NCCN_NOTIFY_PROVIDER=feishu
+NCCN_NOTIFY_ON=changes
+NCCN_NOTIFY_TITLE=NCCN Guideline Updates
+NCCN_NOTIFY_MAX_ITEMS=20
+NCCN_FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/...
+NCCN_FEISHU_SECRET=
+```
+
+If the Feishu bot has signature verification enabled, set `NCCN_FEISHU_SECRET` to the bot secret. Send a test card before enabling the scheduled service:
+
+```bash
+docker compose run --rm nccn-archiver --notify-test
+```
+
 ## Login Fallback
 
 If normal username/password login is blocked by MFA, SSO, or browser checks, you can paste your own active NCCN cookie string:

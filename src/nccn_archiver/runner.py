@@ -7,7 +7,7 @@ from .config import Settings
 from .downloader import NCCNClient
 from .fingerprint import PdfFingerprint, pdf_fingerprint
 from .index import build_public_index, filter_guidelines, save_index
-from .models import Guideline, RunSummary
+from .models import ArchivedUpdate, FailedGuideline, Guideline, RunSummary
 from .naming import guideline_pdf_filename, slugify, version_token
 from .state import load_state, save_state, utc_now_iso
 
@@ -61,6 +61,8 @@ async def run_once(
         return RunSummary(checked=len(guidelines), updated=0, skipped=0, failed=0)
 
     checked = updated = skipped = failed = 0
+    update_records: list[ArchivedUpdate] = []
+    failure_records: list[FailedGuideline] = []
     async with NCCNClient(settings) as client:
         for guideline in guidelines:
             checked += 1
@@ -74,8 +76,27 @@ async def run_once(
                     continue
 
                 historical_path, latest_path = _archive_paths(settings, guideline, fingerprint)
+                version = fingerprint.version or guideline.version
+                archived_at = utc_now_iso()
+                update_record = ArchivedUpdate(
+                    title=guideline.title,
+                    slug=guideline.slug,
+                    category=guideline.category,
+                    variant=guideline.variant,
+                    version=version or "",
+                    previous_version=previous.get("version", ""),
+                    source_url=downloaded.source_url,
+                    detail_url=guideline.detail_url,
+                    historical_path=str(historical_path),
+                    latest_path=str(latest_path),
+                    bytes=len(downloaded.content),
+                    page_count=fingerprint.page_count,
+                    content_sha256=fingerprint.content_sha256,
+                    archived_at=archived_at,
+                )
                 if dry_run:
                     updated += 1
+                    update_records.append(update_record)
                     LOGGER.info("Would archive update: %s", guideline.title)
                     continue
 
@@ -85,7 +106,6 @@ async def run_once(
                 latest_path.write_bytes(downloaded.content)
                 _remove_previous_latest(previous, latest_path)
 
-                version = fingerprint.version or guideline.version
                 state["guidelines"][guideline.slug] = {
                     "title": guideline.title,
                     "slug": guideline.slug,
@@ -103,15 +123,33 @@ async def run_once(
                     "fingerprint_method": fingerprint.method,
                     "page_count": fingerprint.page_count,
                     "bytes": len(downloaded.content),
-                    "archived_at": utc_now_iso(),
+                    "archived_at": archived_at,
                     "historical_path": str(historical_path),
                     "latest_path": str(latest_path),
                 }
                 save_state(settings.state_file, state)
                 updated += 1
+                update_records.append(update_record)
                 LOGGER.info("Archived: %s", guideline.title)
             except Exception as exc:
                 failed += 1
+                failure_records.append(
+                    FailedGuideline(
+                        title=guideline.title,
+                        slug=guideline.slug,
+                        category=guideline.category,
+                        variant=guideline.variant,
+                        detail_url=guideline.detail_url,
+                        error=str(exc),
+                    )
+                )
                 LOGGER.error("Failed: %s - %s", guideline.title, exc)
 
-    return RunSummary(checked=checked, updated=updated, skipped=skipped, failed=failed)
+    return RunSummary(
+        checked=checked,
+        updated=updated,
+        skipped=skipped,
+        failed=failed,
+        updates=tuple(update_records),
+        failures=tuple(failure_records),
+    )

@@ -37,6 +37,7 @@ def _optional_int_env(name: str) -> int | None:
 
 @dataclass(frozen=True)
 class Settings:
+    archive_host_dir: Path | None
     archive_dir: Path
     state_file: Path
     index_file: Path
@@ -54,11 +55,21 @@ class Settings:
     request_delay_seconds: float
     max_concurrency: int
     min_pdf_bytes: int
+    notify_provider: str
+    notify_on: str
+    notify_title: str
+    notify_max_items: int
+    feishu_webhook_url: str
+    feishu_secret: str
 
     @classmethod
     def from_env(cls) -> "Settings":
         archive_dir = Path(os.getenv("NCCN_ARCHIVE_DIR", "/archive")).expanduser()
+        archive_host_dir_value = os.getenv("ARCHIVE_HOST_DIR", "").strip()
         return cls(
+            archive_host_dir=(
+                Path(archive_host_dir_value).expanduser() if archive_host_dir_value else None
+            ),
             archive_dir=archive_dir,
             state_file=Path(os.getenv("NCCN_STATE_FILE", archive_dir / "manifest.json")).expanduser(),
             index_file=Path(os.getenv("NCCN_INDEX_FILE", archive_dir / "index.yaml")).expanduser(),
@@ -76,8 +87,18 @@ class Settings:
             request_delay_seconds=float(os.getenv("NCCN_REQUEST_DELAY_SECONDS", "2")),
             max_concurrency=max(1, int(os.getenv("NCCN_MAX_CONCURRENCY", "2"))),
             min_pdf_bytes=max(1, int(os.getenv("NCCN_MIN_PDF_BYTES", "1024"))),
+            notify_provider=os.getenv("NCCN_NOTIFY_PROVIDER", "").strip().lower(),
+            notify_on=os.getenv("NCCN_NOTIFY_ON", "changes").strip().lower(),
+            notify_title=os.getenv("NCCN_NOTIFY_TITLE", "NCCN Guideline Updates"),
+            notify_max_items=max(1, int(os.getenv("NCCN_NOTIFY_MAX_ITEMS", "20"))),
+            feishu_webhook_url=os.getenv("NCCN_FEISHU_WEBHOOK_URL", ""),
+            feishu_secret=os.getenv("NCCN_FEISHU_SECRET", ""),
         )
 
     @property
     def has_login_config(self) -> bool:
         return bool(self.username and self.password)
+
+    @property
+    def has_feishu_notifications(self) -> bool:
+        return self.notify_provider == "feishu" and bool(self.feishu_webhook_url)
